@@ -67,7 +67,7 @@ def summarize_objects(objects)
 end
 
 def prompt_for_confirmation(objects, state_machine_arn)
-  _, _, singular_count, singular_bytes, object_count_human_readable, bytes_human_readable = summarize_objects(objects)
+  _object_count, _object_size, singular_count, singular_bytes, object_count_human_readable, bytes_human_readable = summarize_objects(objects)
 
   puts "There #{singular_count ? 'is' : 'are'} #{object_count_human_readable} object#{singular_count ? '' : 's'} with a total size of #{bytes_human_readable} byte#{singular_bytes ? '' : 's'}."
   puts %(Are you sure you want to submit these objects to the step function "#{state_machine_arn}"? [y/N])

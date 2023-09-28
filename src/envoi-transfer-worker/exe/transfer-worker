@@ -1,0 +1,28 @@
+#!/usr/bin/env ruby
+require_relative '../lib/transfer-worker'
+
+activity_arn = ENV['ACTIVITY_ARN']
+aws_profile = ENV['AWS_PROFILE']
+aws_region = ENV['AWS_REGION']
+
+unless aws_region
+  begin
+    ec2_metadata = Aws::EC2Metadata.new
+    aws_region = ec2_metadata.get('/latest/meta-data/placement/region')
+    ENV['AWS_REGION'] = aws_region
+  rescue => e
+    puts "Exception getting ec2 metadata. #{e.message}"
+  end
+end
+aws_region ||= 'us-east-1'
+
+worker_name = ENV['TRANSFER_WORKER_NAME'] || `hostname` || 'transfer-worker'
+
+states_client_args = {
+  region: aws_region
+}
+tw = TransferWorker.new({
+  states_client_args: states_client_args,
+  worker_name: worker_name
+})
+tw.run(activity_arn)
