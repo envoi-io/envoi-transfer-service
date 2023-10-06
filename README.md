@@ -18,7 +18,7 @@ Install Aspera CLI
 gem install aspera-cli
 ```
 
-Add ascli to the bin path
+Create a link for ascli in the user local bin directory
 
 ```bash
 sudo ln -s ~/.gem/bin/ascli /usr/local/bin/
