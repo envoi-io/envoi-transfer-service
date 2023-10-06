@@ -15,12 +15,4 @@ class BasicTaskHandler
     @logger || self.class.logger || Logger.new($stdout)
   end
 
-  # def self.logger=(logger)
-  #   @@logger = logger
-  # end
-  #
-  # def self.logger
-  #   @@logger
-  # end
-
 end

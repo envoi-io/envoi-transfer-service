@@ -8,8 +8,6 @@ require 'aws-sdk-states'
 require 'net/https'
 require 'shellwords'
 
-require 'app-logger'
-
 require 'aspera-node-transfer-handler'
 require 'aspera-on-cloud-task-handler'
 
@@ -88,16 +86,16 @@ class TransferWorker
     output = JSON.generate(resp) rescue resp.respond_to?(:to_s) ? resp.to_s : resp
     logger.debug { "Output: #{output}" }
     states_client.send_task_success({
-                                task_token: activity_task.task_token,
-                                output: output
-                            })
+                                      task_token: activity_task.task_token,
+                                      output: output
+                                    })
     logger.info('Success.')
   rescue StandardError => err
     # Unexpected error
     states_client.send_task_failure({
-                                task_token: activity_task.task_token,
-                                cause: "[#{@worker_name}] Unexpected error: #{err.message}"
-                            })
+                                      task_token: activity_task.task_token,
+                                      cause: "[#{@worker_name}] Unexpected error: #{err.message}"
+                                    })
     logger.error('Unexpected error: ' + err.message)
     logger.debug(err)
   end
@@ -112,9 +110,9 @@ class TransferWorker
       begin
         logger.info("Waiting for a task. Press Ctrl-C to interrupt. Monitoring Activity '#{activity_arn}'.")
         activity_task = states_client.get_activity_task({
-          activity_arn: activity_arn,
-          worker_name: @worker_name
-        })
+                                                          activity_arn: activity_arn,
+                                                          worker_name: @worker_name
+                                                        })
         if activity_task[:task_token]
           time_start = Time.now.to_i
           handle_activity_task(activity_task)

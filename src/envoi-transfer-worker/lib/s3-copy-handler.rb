@@ -12,7 +12,8 @@ class S3CopyHandler < BasicTaskHandler
     credentials = config[:credentials]
     if credentials && !credentials.empty?
       config[:credentials] = Aws::Credentials.new(
-        credentials[:access_key_id], credentials[:secret_access_key], credentials[:session_token])
+        credentials[:access_key_id], credentials[:secret_access_key], credentials[:session_token]
+)
     else
       config.delete(:credentials)
     end

@@ -73,15 +73,16 @@ class AsperaOnCloudTaskHandler < BasicTaskHandler
 
     raise Error('ascli executable not found.') if executable_path.empty?
 
-    cmd_ary = %W[#{executable_path} aoc files upload
-                 #{source_path.empty? ? '' : %("#{source_path}")}
-                 #{aoc_to_folder.empty? ? nil : %( --to-folder="#{aoc_to_folder}")}
-                 #{aoc_username.empty? ? nil : %( --username="#{aoc_username}")}
-                 #{aoc_workspace.empty? ? nil : %( --workspace="#{aoc_workspace}")}
-                 #{aoc_url.empty? ? '' : %( --url="#{aoc_url}")}
-                 #{aoc_private_key.empty? ? '' : %( --private-key="#{aoc_private_key}")}
-                 #{aoc_link.empty? ? '' : %( --link="#{aoc_link}")}
-                 #{aoc_password.empty? ? '' : %( --password="#{aoc_password}")}
+    cmd_ary = %W[
+      #{executable_path} aoc files upload
+      #{source_path.empty? ? '' : %("#{source_path}")}
+      #{aoc_to_folder.empty? ? nil : %( --to-folder="#{aoc_to_folder}")}
+      #{aoc_username.empty? ? nil : %( --username="#{aoc_username}")}
+      #{aoc_workspace.empty? ? nil : %( --workspace="#{aoc_workspace}")}
+      #{aoc_url.empty? ? '' : %( --url="#{aoc_url}")}
+      #{aoc_private_key.empty? ? '' : %( --private-key="#{aoc_private_key}")}
+      #{aoc_link.empty? ? '' : %( --link="#{aoc_link}")}
+      #{aoc_password.empty? ? '' : %( --password="#{aoc_password}")}
     ].delete_if(&:nil?)
 
     # cmd = cmdAry.shelljoin

@@ -84,7 +84,7 @@ class S3Downloader
 
 
     bucket_name = uri.host
-    object_key = uri.path
+    object_key = uri.path || ''
     object_key.slice!(0) if object_key.start_with?('/')
     {
       credentials: credentials,
