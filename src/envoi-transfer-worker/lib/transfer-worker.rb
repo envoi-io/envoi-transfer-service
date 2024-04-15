@@ -1,7 +1,6 @@
 lib_path = File.expand_path('../../lib', __FILE__)
 $LOAD_PATH.unshift(lib_path) unless $LOAD_PATH.include?(lib_path) || !File.directory?(lib_path)
 
-require 'set'
 require 'json'
 require 'aws-sdk-core'
 require 'aws-sdk-states'
@@ -20,7 +19,7 @@ class TransferWorker
 
     @logger = args[:logger] || Logger.new($stdout)
 
-    @worker_name = args.fetch(:worker_name, 'transfer-worker')
+    @worker_name = args.fetch(:worker_name, 'envoi-transfer-worker')
 
     states_client_args = args.fetch(:states_client_args, {})
 
@@ -62,9 +61,9 @@ class TransferWorker
 
     case (task_type || '').downcase
     when 'aspera_on_cloud'
-      handler = AsperaOnCloudTaskHandler.new({ input: input, logger: @logger })
+      handler = AsperaOnCloudTaskHandler.new({ input:, logger: @logger })
     when 'aspera_node_transfer'
-      handler = AsperaNodeTransferHandler.new({ input: input, logger: @logger })
+      handler = AsperaNodeTransferHandler.new({ input:, logger: @logger })
     when 's3_copy'
       handler = S3CopyHandler.new({ input: input, logger: @logger })
     else
@@ -87,17 +86,17 @@ class TransferWorker
     logger.debug { "Output: #{output}" }
     states_client.send_task_success({
                                       task_token: activity_task.task_token,
-                                      output: output
+                                      output:
                                     })
     logger.info('Success.')
-  rescue StandardError => err
+  rescue StandardError => e
     # Unexpected error
     states_client.send_task_failure({
                                       task_token: activity_task.task_token,
-                                      cause: "[#{@worker_name}] Unexpected error: #{err.message}"
+                                      cause: "[#{@worker_name}] Unexpected error: #{e.message}"
                                     })
-    logger.error('Unexpected error: ' + err.message)
-    logger.debug(err)
+    logger.error("Unexpected error: #{e.message}")
+    logger.debug(e)
   end
 
   def run(activity_arn)
@@ -107,26 +106,22 @@ class TransferWorker
       return false
     end
     loop do
-      begin
-        logger.info("Waiting for a task. Press Ctrl-C to interrupt. Monitoring Activity '#{activity_arn}'.")
-        activity_task = states_client.get_activity_task({
-                                                          activity_arn: activity_arn,
-                                                          worker_name: @worker_name
-                                                        })
-        if activity_task[:task_token]
-          time_start = Time.now.to_i
-          handle_activity_task(activity_task)
-          time_took = Time.now.to_i - time_start
-          logger.debug { "Task took #{time_took} seconds." }
-        end
-      rescue Net::ReadTimeout => e
-        logger.warn("#{e.message} while waiting for a task.")
-      rescue SignalException => e
-        logger.debug("Received Interrupt, shutting down. #{e}")
-        break
-      rescue StandardError => e
-        logger.error("Exception Waiting for Activity: #{e.message}#{e.class.name != e.message ? " #{e.class.name}" : ''}")
+      logger.info("Waiting for a task. Press Ctrl-C to interrupt. Monitoring Activity '#{activity_arn}'.")
+      activity_task = states_client.get_activity_task({})
+      if activity_task[:task_token]
+        time_start = Time.now.to_i
+        handle_activity_task(activity_task)
+        time_took = Time.now.to_i - time_start
+        logger.debug { "Task took #{time_took} seconds." }
       end
+    rescue Net::ReadTimeout => e
+      logger.warn("#{e.message} while waiting for a task.")
+    rescue SignalException => e
+      logger.debug("Received Interrupt, shutting down. #{e}")
+      break
+    rescue StandardError => e
+      logger.error("Exception Waiting for Activity: #{e.message}#{e.class.name != e.message ? " #{e.class.name}" : ''}")
+
     end
   end
 end

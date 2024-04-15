@@ -16,13 +16,13 @@ unless aws_region
 end
 aws_region ||= 'us-east-1'
 
-worker_name = ENV['TRANSFER_WORKER_NAME'] || `hostname` || 'transfer-worker'
+worker_name = ENV['TRANSFER_WORKER_NAME'] || `hostname` || 'envoi-transfer-worker'
 
 states_client_args = {
   region: aws_region
 }
 tw = TransferWorker.new({
-                          states_client_args: states_client_args,
-                          worker_name: worker_name
+                          states_client_args:,
+                          worker_name:
                         })
 tw.run(activity_arn)

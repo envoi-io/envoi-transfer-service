@@ -47,7 +47,7 @@ class AsperaOnCloudTaskHandler < BasicTaskHandler
     end
 
     if source_uri || source_url
-      response = S3Downloader.new(uri: source_uri, url: source_url).download
+      response = S3Downloader.new(uri: source_uri, url: source_url, credentials:).download
       source_path = response[:destination] || ''
     end
 

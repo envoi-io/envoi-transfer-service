@@ -3,18 +3,18 @@ require 'aws-sdk-s3'
 module S3Service
   class << self
     def upload_file(from:, to:, bucket:)
-      object = object(to, bucket: bucket)
+      object = object(to, bucket:)
       object.upload_file(from)
       object.presigned_url(:get)
     end
 
     def download_file(key:, to:, bucket:, options: {})
-      object = object(key, bucket: bucket, options: options)
+      object = object(key, bucket:, options:)
       object.download_file(to)
     end
 
     def get_download_link(file_name, bucket:)
-      object(file_name, bucket: bucket).presigned_url(:get).to_s
+      object(file_name, bucket:).presigned_url(:get).to_s
     end
 
     private
@@ -34,13 +34,14 @@ class S3Helper
   def initialize(args = {})
     @client = args[:client] || Aws::S3::Client.new
   end
+
   def download_file(key:, to:, bucket:)
-    object = object(key, bucket: bucket)
+    object = object(key, bucket:)
     object.download_file(to)
   end
 
   def get_download_link(file_name, bucket:)
-    object(file_name, bucket: bucket).presigned_url(:get).to_s
+    object(file_name, bucket:).presigned_url(:get).to_s
   end
 
   private
@@ -57,11 +58,11 @@ end
 
 class S3Downloader
 
-  def initialize(args: {}, url: nil, uri: nil, options: {})
+  def initialize(args: {}, url: nil, uri: nil, credentials: nil)
     @init_args = args.dup
 
     args_from_url = nil
-    args_from_url = url_to_args(uri: uri, url: url, args: args) if uri || url
+    args_from_url = url_to_args(uri:, url:, args:) if uri || url
     @args = args_from_url || args
   end
 
@@ -90,6 +91,8 @@ class S3Downloader
       credentials: credentials,
       bucket_name: bucket_name,
       object_key: object_key
+      credentials:,
+      bucket_name:,
     }
   end
 
@@ -112,8 +115,8 @@ class S3Downloader
     S3Service.download_file(key: object_key, to: destination, bucket: bucket_name, options: options)
 
     {
-      destination: destination,
-      destination_file_name: destination_file_name
+      destination:,
+      destination_file_name:
     }
   end
 

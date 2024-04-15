@@ -4,3 +4,4 @@ source 'https://rubygems.org'
 
 # gem's dependencies are in file <gem name>.gemspec
 gemspec
+gem 'rubocop', group: 'development', require: false
