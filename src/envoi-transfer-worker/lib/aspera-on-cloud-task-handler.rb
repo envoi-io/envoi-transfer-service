@@ -2,16 +2,17 @@ require 'net/https'
 require 'open3'
 require 'shellwords'
 
+require 'basic-task-handler'
+# require('s3-helper')
 
-require('basic-task-handler')
-require('s3-helper')
-
-DEFAULT_TMP_DIR_PATH = ENV['TEMP_DIR'] || '/tmp/'
+DEFAULT_TEMP_DIR_PATH = ENV['TEMP_DIR'] || '/tmp/' unless defined? DEFAULT_TEMP_DIR_PATH
 
 class AsperaOnCloudTaskHandler < BasicTaskHandler
 
   def initialize(args = {}, _options = {})
     super(args)
+
+    @temp_dir = args[:temp_dir] || DEFAULT_TEMP_DIR_PATH
   end
 
   def process_source
@@ -57,7 +58,7 @@ class AsperaOnCloudTaskHandler < BasicTaskHandler
   def run
     args = @task_input
 
-    tmp_dir = DEFAULT_TMP_DIR_PATH
+    tmp_dir = @temp_dir
     source_path = process_source
 
     aoc_url = args.fetch(:url, '')
