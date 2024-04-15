@@ -22,12 +22,14 @@ class AsperaOnCloudTaskHandler < BasicTaskHandler
     source_url = nil
     source_uri = nil
     source_path = ''
+    credentials = nil
 
     case source
-    when Hash;
+    when Hash
       source_path = source[:path]
       source_url = source[:url]
-    when String;
+      credentials = source[:credentials]
+    when String
       if source.match(%r{\w*://.*})
         source_uri = URI(source)
         case source_uri.scheme
@@ -38,7 +40,7 @@ class AsperaOnCloudTaskHandler < BasicTaskHandler
           #   Download to source tmp
           # source_path = File.join(tmp_dir_path, source_file_name)
         else
-          logger.debug "Unknown URI Scheme: #{source_uri.scheme}"
+          logger.debug "Unknown URI Scheme: #{source_uri.scheme}. Unsupported Source."
         end
       else
         source_path = source
