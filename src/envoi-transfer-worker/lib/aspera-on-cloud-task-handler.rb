@@ -76,19 +76,20 @@ class AsperaOnCloudTaskHandler < BasicTaskHandler
 
     cmd_ary = %W[
       #{executable_path} aoc files upload
-      #{source_path.empty? ? '' : %("#{source_path}")}
+      #{source_path.empty? ? nil : %("#{source_path}")}
       #{aoc_to_folder.empty? ? nil : %( --to-folder="#{aoc_to_folder}")}
       #{aoc_username.empty? ? nil : %( --username="#{aoc_username}")}
       #{aoc_workspace.empty? ? nil : %( --workspace="#{aoc_workspace}")}
-      #{aoc_url.empty? ? '' : %( --url="#{aoc_url}")}
-      #{aoc_private_key.empty? ? '' : %( --private-key="#{aoc_private_key}")}
-      #{aoc_link.empty? ? '' : %( --link="#{aoc_link}")}
-      #{aoc_password.empty? ? '' : %( --password="#{aoc_password}")}
-    ].delete_if(&:nil?)
+      #{aoc_url.empty? ? nil : %( --url="#{aoc_url}")}
+      #{aoc_private_key.empty? ? nil : %( --private-key="#{aoc_private_key}")}
+      #{aoc_link.empty? || !aoc_url.empty? ? nil : %( --link="#{aoc_link}")}
+      #{aoc_password.empty? ? nil : %( --password="#{aoc_password}")}
+    ].delete_if(&:empty?)
 
-    # cmd = cmdAry.shelljoin
+    # cmd = cmd_ary.shelljoin
     cmd = cmd_ary.join(' ')
-    logger.debug "CMD: #{cmd}"
+    cmd_sanitized = cmd.gsub(/(?:--password="|--private-key=").*?"/, '\1REDACTED"')
+    logger.debug "CMD: #{cmd_sanitized}"
 
     stdout, stderr, status = Open3.capture3(cmd)
 
