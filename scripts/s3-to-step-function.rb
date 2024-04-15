@@ -27,7 +27,7 @@ parser = OptionParser.new do |opts|
     exit
   end
 end
-
+parser.load
 parser.parse!(ARGV)
 
 if options[:bucket_name].nil? || options[:state_machine_arn].nil?
