@@ -1,0 +1,75 @@
+PATH
+  remote: .
+  specs:
+    envoi-envoi-transfer-worker (1.0)
+      aws-sdk-s3 (~> 1)
+      aws-sdk-ssm (~> 1)
+      aws-sdk-states (~> 1)
+      rexml (~> 3)
+
+GEM
+  remote: https://rubygems.org/
+  specs:
+    ast (2.4.2)
+    aws-eventstream (1.2.0)
+    aws-partitions (1.848.0)
+    aws-sdk-core (3.186.0)
+      aws-eventstream (~> 1, >= 1.0.2)
+      aws-partitions (~> 1, >= 1.651.0)
+      aws-sigv4 (~> 1.5)
+      jmespath (~> 1, >= 1.6.1)
+    aws-sdk-kms (1.72.0)
+      aws-sdk-core (~> 3, >= 3.184.0)
+      aws-sigv4 (~> 1.1)
+    aws-sdk-s3 (1.136.0)
+      aws-sdk-core (~> 3, >= 3.181.0)
+      aws-sdk-kms (~> 1)
+      aws-sigv4 (~> 1.6)
+    aws-sdk-ssm (1.159.0)
+      aws-sdk-core (~> 3, >= 3.184.0)
+      aws-sigv4 (~> 1.1)
+    aws-sdk-states (1.59.0)
+      aws-sdk-core (~> 3, >= 3.184.0)
+      aws-sigv4 (~> 1.1)
+    aws-sigv4 (1.6.1)
+      aws-eventstream (~> 1, >= 1.0.2)
+    jmespath (1.6.2)
+    json (2.7.1)
+    language_server-protocol (3.17.0.3)
+    parallel (1.23.0)
+    parser (3.2.2.4)
+      ast (~> 2.4.1)
+      racc
+    racc (1.7.3)
+    rainbow (3.1.1)
+    rake (13.1.0)
+    regexp_parser (2.8.3)
+    rexml (3.2.6)
+    rubocop (1.59.0)
+      json (~> 2.3)
+      language_server-protocol (>= 3.17.0)
+      parallel (~> 1.10)
+      parser (>= 3.2.2.4)
+      rainbow (>= 2.2.2, < 4.0)
+      regexp_parser (>= 1.8, < 3.0)
+      rexml (>= 3.2.5, < 4.0)
+      rubocop-ast (>= 1.30.0, < 2.0)
+      ruby-progressbar (~> 1.7)
+      unicode-display_width (>= 2.4.0, < 3.0)
+    rubocop-ast (1.30.0)
+      parser (>= 3.2.1.0)
+    ruby-progressbar (1.13.0)
+    unicode-display_width (2.5.0)
+
+PLATFORMS
+  x86_64-darwin-19
+  x86_64-darwin-21
+
+DEPENDENCIES
+  bundler (~> 2.4)
+  envoi-envoi-transfer-worker!
+  rake (~> 13.0)
+  rubocop
+
+BUNDLED WITH
+   2.4.10
