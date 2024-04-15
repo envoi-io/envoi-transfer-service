@@ -1,6 +1,7 @@
 require 'logger'
 require 'utils'
 
+# A basic task handler class that provides a logger and input handling.
 class BasicTaskHandler
 
   attr_accessor :init_args
@@ -12,7 +13,7 @@ class BasicTaskHandler
   end
 
   def logger
-    @logger || self.class.logger || Logger.new($stdout)
+    @logger ||= self.class.logger || Logger.new($stdout)
   end
 
 end
