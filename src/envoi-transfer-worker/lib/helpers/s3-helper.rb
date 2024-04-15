@@ -1,5 +1,7 @@
 require 'aws-sdk-s3'
 
+DEFAULT_TEMP_DIR_PATH = ENV['TEMP_DIR'] || '/tmp/' unless defined? DEFAULT_TEMP_DIR_PATH
+
 module S3Service
   class << self
     def upload_file(from:, to:, bucket:)
@@ -64,6 +66,9 @@ class S3Downloader
     args_from_url = nil
     args_from_url = url_to_args(uri:, url:, args:) if uri || url
     @args = args_from_url || args
+    @args[:credentials] = credentials if credentials
+
+    @temp_dir = args[:temp_dir] || DEFAULT_TEMP_DIR_PATH
   end
 
   def url_to_args(uri: nil, url: nil, args: {})
@@ -87,12 +92,11 @@ class S3Downloader
     bucket_name = uri.host
     object_key = uri.path || ''
     object_key.slice!(0) if object_key.start_with?('/')
+    object_key.gsub('+', ' ')
     {
-      credentials: credentials,
-      bucket_name: bucket_name,
-      object_key: object_key
       credentials:,
       bucket_name:,
+      object_key:
     }
   end
 
@@ -109,10 +113,10 @@ class S3Downloader
     options[:credentials] = aws_credentials if aws_credentials
 
 
-    destination_file_name = File.basename(object_key)
+    destination_file_name = @init_args[:destination_file_name] || File.basename(object_key)
 
-    destination = %(/tmp/#{destination_file_name})
-    S3Service.download_file(key: object_key, to: destination, bucket: bucket_name, options: options)
+    destination = File.join(@temp_dir, destination_file_name)
+    S3Service.download_file(key: object_key, to: destination, bucket: bucket_name, options:)
 
     {
       destination:,
