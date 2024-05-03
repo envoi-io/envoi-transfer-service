@@ -22,19 +22,19 @@ end
 args = {}
 @log_request_body = args.fetch(:log_request_body, true)
 
-def log_request_body;
+def log_request_body
   @log_request_body
 end
 
 @log_response_body = args.fetch(:log_response_body, true)
 
-def log_response_body;
+def log_response_body
   @log_response_body
 end
 
 @log_pretty_print_body = args.fetch(:log_pretty_print_body, true)
 
-def log_pretty_print_body;
+def log_pretty_print_body
   @log_pretty_print_body
 end
 
@@ -42,7 +42,7 @@ def format_body_for_log_output(obj)
   if obj.content_type == 'application/json'
     if @log_pretty_print_body
       body = obj.body
-      JSON.pretty_generate(JSON.parse(_body)) rescue body
+      JSON.pretty_generate(JSON.parse(body)) rescue body
     else
       obj.body
     end
@@ -93,7 +93,7 @@ class AppLogger
     if obj.content_type == 'application/json'
       if @log_pretty_print_body
         body = obj.body
-        JSON.pretty_generate(JSON.parse(_body)) rescue body
+        JSON.pretty_generate(JSON.parse(body)) rescue body
       else
         obj.body
       end
