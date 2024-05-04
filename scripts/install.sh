@@ -14,4 +14,4 @@ cd "${TARGET_BASE_DIR}" || exit 1
 git clone https://github.com/envoi-io/envoi-transfer-service.git
 cd "${TARGET_BASE_DIR}/envoi-transfer-service/src/envoi-transfer-worker" || exit 1
 sudo bundle install
-ruby install-worker-service.rb
+sudo ruby install-worker-service.rb
