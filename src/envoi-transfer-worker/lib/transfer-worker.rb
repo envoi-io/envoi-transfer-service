@@ -9,6 +9,7 @@ require 'shellwords'
 
 require 'aspera-node-transfer-handler'
 require 'aspera-on-cloud-task-handler'
+require 'youtube-task-handler'
 
 class TransferWorker
 
@@ -65,7 +66,9 @@ class TransferWorker
     when 'aspera_node_transfer'
       handler = AsperaNodeTransferHandler.new({ input:, logger: @logger })
     when 's3_copy'
-      handler = S3CopyHandler.new({ input: input, logger: @logger })
+      handler = S3CopyHandler.new({ input:, logger: @logger })
+    when 'youtube_video_insert'
+      handler = YouTubeTaskHandler.new({ input:, logger: @logger })
     else
       throw ArgumentError, "Unhandled Type '#{task_type}'"
     end
@@ -107,7 +110,10 @@ class TransferWorker
     end
     loop do
       logger.info("Waiting for a task. Press Ctrl-C to interrupt. Monitoring Activity '#{activity_arn}'.")
-      activity_task = states_client.get_activity_task({})
+        activity_task = states_client.get_activity_task({
+                                                          activity_arn: activity_arn,
+                                                          worker_name: @worker_name
+                                                        })
       if activity_task[:task_token]
         time_start = Time.now.to_i
         handle_activity_task(activity_task)
@@ -124,4 +130,31 @@ class TransferWorker
 
     end
   end
+
+  def determine_source_type(source)
+    source = source.to_s
+    if source.start_with?('s3://')
+      :s3
+    elsif source start_with?('aoc://')
+      :aspera_on_cloud
+    elsif source.start_with?('aspera://')
+      :aspera
+    else
+      :local
+    end
+  end
+
+  def process_source(source)
+    case determine_source_type(source)
+    when :s3
+      S3Helper.new.download_file(key: source, to: @temp_dir, bucket: nil)
+    when :aspera
+      AsperaNodeTransferHandler.new({ input: { source: }, logger: @logger }).run
+    when :aspera_on_cloud
+      AsperaOnCloudTaskHandler.new({ input: { source: }, logger: @logger }).run
+    else
+      source
+    end
+  end
+
 end
