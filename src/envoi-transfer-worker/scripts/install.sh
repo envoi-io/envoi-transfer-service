@@ -1,0 +1,64 @@
+#!/usr/bin/env bash
+
+REPO_URL="https://github.com/envoi-io/envoi-transfer-service.git"
+TARGET_DIR_NAME=envoi-transfer-service
+TARGET_INSTALLATION_BASE_DIR=/opt/envoi
+
+apt-get update -y
+apt-get upgrade -y
+apt-get install -y ruby-dev
+apt-get install -y build-essential
+gem install bundler
+gem install aspera-cli
+mkdir -p "${TARGET_INSTALLATION_BASE_DIR}"
+chown -R ubuntu:ubuntu "${TARGET_INSTALLATION_BASE_DIR}"
+cd "${TARGET_INSTALLATION_BASE_DIR}" || exit 1
+git clone "${REPO_URL}" "${TARGET_DIR_NAME}"
+cd "${TARGET_INSTALLATION_BASE_DIR}/${TARGET_DIR_NAME}/src/envoi-transfer-worker" || exit 1
+bundle install
+
+# Define the environment file path
+environment_file_path="/etc/envoi/envoi-transfer-worker.env"
+
+# Write the environment variables to the file
+echo "ACTIVITY_ARN=" > "$environment_file_path"
+
+# Get the path to the ruby executable
+ruby_path=$(which ruby)
+
+# Get the absolute path to the working directory
+working_directory=$(cd "$(dirname "$0")/.." && pwd)
+
+# Define the service definition
+service_def="
+[Unit]
+Description=Envoi Transfer Worker
+
+[Service]
+Type=simple
+Restart=always
+ExecStart=$ruby_path exe/envoi-transfer-worker
+WorkingDirectory=$working_directory
+EnvironmentFile=$environment_file_path
+
+[Install]
+WantedBy=multi-user.target
+"
+
+# Write the service definition to the service file
+echo "$service_def" > /etc/systemd/system/envoi-transfer-worker.service
+
+# Reload the systemd daemon
+systemctl daemon-reload
+
+# Enable the service
+systemctl enable envoi-transfer-worker
+
+# Restart the service
+service envoi-transfer-worker restart
+
+# Wait for 2 seconds
+sleep 2
+
+# Check the status of the service
+service envoi-transfer-worker status
