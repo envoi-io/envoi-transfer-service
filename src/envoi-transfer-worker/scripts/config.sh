@@ -1,0 +1,28 @@
+#!/bin/bash
+
+# Define the path to the environment file
+ENV_FILE="/etc/envoi/envoi-transfer-worker.env"
+
+# Check if the environment file exists
+if [ -f "$ENV_FILE" ]; then
+    # Source the environment file
+    source "$ENV_FILE"
+fi
+
+# Prompt for TRANSFER_WORKER_NAME
+echo "Enter the name of the transfer worker (default: $TRANSFER_WORKER_NAME): "
+read INPUT_TRANSFER_WORKER_NAME
+# If the user entered a value, use it. Otherwise, use the default value.
+TRANSFER_WORKER_NAME=${INPUT_TRANSFER_WORKER_NAME:-$TRANSFER_WORKER_NAME}
+
+# Prompt for ACTIVITY_ARN
+echo "Enter the ARN of the activity to run (default: $ACTIVITY_ARN): "
+read INPUT_ACTIVITY_ARN
+# If the user entered a value, use it. Otherwise, use the default value.
+ACTIVITY_ARN=${INPUT_ACTIVITY_ARN:-$ACTIVITY_ARN}
+
+# Write the environment variables to the file
+echo "TRANSFER_WORKER_NAME=$TRANSFER_WORKER_NAME" > $ENV_FILE
+echo "ACTIVITY_ARN=$ACTIVITY_ARN" >> $ENV_FILE
+
+echo "Environment file created at $ENV_FILE"
