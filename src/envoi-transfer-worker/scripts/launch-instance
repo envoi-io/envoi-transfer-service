@@ -7,6 +7,8 @@ default_instance_name=${DEFAULT_INSTANCE_NAME:-"envoi-transfer-worker"}
 default_instance_type=${DEFAULT_INSTANCE_TYPE:-"c7i.large"}
 default_security_group_name=${DEFAULT_SECURITY_GROUP_NAME:-"envoi-transfer-worker"}
 
+
+
 function usage {
   echo "Usage: $0 [-n|--name NAME] [-t|--type INSTANCE_TYPE] [-k|--key-pair KEY_PAIR] [-h|--help]"
   echo "Options:"
@@ -94,7 +96,6 @@ function select_create_or_skip_eni {
         eni_id=$selected_eni_id
     fi
 }
-
 
 # Select or Create Security Group
 function select_or_create_security_group {
@@ -225,6 +226,7 @@ function launch_instance {
     local ami_id=$3
     local instance_type=$4
     local instance_iam_role_name=$5
+    local activity_arn=$6
 
     # Select or Create Security Group
     select_or_create_security_group security_group_name
@@ -259,15 +261,26 @@ function launch_instance {
         eni_option=""
     fi
 
+    if [ -n "$instance_name" ]; then
+        instance_name_option="--tag-specifications 'ResourceType=instance,Tags=[{Key=Name,Value=$instance_name}]'"
+    else
+        instance_name_option=""
+    fi
+
+    if [ -n "$instance_iam_role_name" ]; then
+        instance_iam_role_option="--iam-instance-profile Name=$instance_iam_role_name"
+    else
+        instance_iam_role_option=""
+    fi
+
     # Launch the instance
     aws ec2 run-instances \
-        --image-id "$default_ami_id" \
-        --instance-type "t2.micro" \
+        --image-id "$ami_id" \
+        --instance-type $instance_type \
         --key-name "$key_pair_name" \
         --security-groups "$security_group_name" \
-        --iam-instance-profile Name="$instance_iam_role_name" \
-        --associate-public-ip-address \
-        --tag-specifications "ResourceType=instance,Tags=[{Key=Name,Value=MyInstance}]" \
+        $instance_name_option \
+        $instance_iam_role_option \
         $eip_option \
         $eni_option \
         --user-data "echo ACTIVITY_ARN=" \
@@ -280,6 +293,8 @@ eval set -- "$TEMP"
 
 while true ; do
     case "$1" in
+        -a|--activity-arn)
+            activity_arn=$2 ; shift 2 ;;
         -n|--name)
             instance_name=$2 ; shift 2 ;;
         -t|--type)
@@ -315,4 +330,4 @@ ami_id=${ami_id-${default_ami_id}}
 #  ami_id=$(get_latest_ami_id "$ami_name")
 #fi
 
-launch_instance "$instance_name" "$key_pair_name" "$ami_id" "$instance_type" "$instance_iam_role_name"
+launch_instance "$instance_name" "$key_pair_name" "$ami_id" "$instance_type" "$instance_iam_role_name" "$activity_arn"
