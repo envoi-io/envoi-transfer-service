@@ -1,0 +1,315 @@
+#!/usr/bin/env bash
+default_ami_id="ami-0cfa2ad4242c3168d"
+default_instance_name=${DEFAULT_INSTANCE_NAME:-"envoi-transfer-worker"}
+default_instance_type=${DEFAULT_INSTANCE_TYPE:-"c7i.large"}
+default_security_group_name=${DEFAULT_SECURITY_GROUP_NAME:-"envoi-transfer-worker"}
+
+function usage {
+  echo "Usage: $0 [-n|--name NAME] [-t|--type INSTANCE_TYPE] [-k|--key-pair KEY_PAIR] [-h|--help]"
+  echo "Options:"
+  echo "  -n, --name NAME          The name of the instance"
+  echo "  -t, --type TYPE          The type of the instance"
+  echo "  -k, --key-pair KEY_PAIR  The name of the key pair"
+  echo "  -h, --help               Display this help and exit"
+  exit 1
+}
+
+# Select, Create or Skip EIP
+function select_create_or_skip_eip {
+    declare -n eip_id=$1
+    echo "Do you want to associate an Elastic IP with the instance? (y/n)"
+    read -r associate_eip
+
+    if [ "$associate_eip" = "y" ]; then
+        echo "Select an Elastic IP:"
+        aws ec2 describe-addresses --query 'Addresses[?InstanceId==null]' --output table
+        echo "Enter the Elastic IP:"
+        read -r selected_eip_id
+
+        if [ "$selected_eip_id" = "c" ]; then
+            echo "Creating a new Elastic IP"
+            selected_eip_id=$(aws ec2 allocate-address --domain vpc --query 'AllocationId' --output text)
+        else
+          if [ -z "$selected_eip_id" ]; then
+            echo "No Elastic IP selected"
+          fi
+        fi
+        eip_id=selected_eip_id
+    fi
+}
+
+function select_subnet {
+    declare -n subnet_id=$1
+
+    # Get the list of subnets
+    subnets=$(aws ec2 describe-subnets --query 'Subnets[].SubnetId' --output text | xargs -n1 | sort)
+
+    # Convert the list into an array
+    subnet_array=("$subnets")
+
+    # Display the subnets and ask the user to select one
+    echo "Please select a subnet:"
+    for i in "${!subnet_array[@]}"; do
+        echo "$i) ${subnet_array[$i]}"
+    done
+
+    read -p "Enter the number of the subnet you want to select: " selection
+
+    # Get the selected subnet
+    selected_subnet=${subnet_array[$selection]}
+
+    echo "You selected subnet: $selected_subnet"
+
+    # Pass the selected subnet ID back to the calling code
+    subnet_id=$selected_subnet
+}
+
+# Select, Create, or Skip ENI
+function select_create_or_skip_eni {
+    declare -n eni_id=$1
+
+    echo "Do you want to attach an Elastic Network Interface to the instance? (y/n)"
+    read -r attach_eni
+
+    if [ "$attach_eni" = "y" ]; then
+        echo "Select an Elastic Network Interface:"
+        aws ec2 describe-network-interfaces --query 'NetworkInterfaces[?Status==`available`]' --output table
+        echo "Enter the Network Interface ID:"
+        read -r selected_eni_id
+
+        if [ "$selected_eni_id" = "c" ]; then
+            select_subnet subnet_id
+            echo "Creating a new Elastic Network Interface"
+            selected_eni_id=$(aws ec2 create-network-interface --description "ENI for instance" --groups "$default_security_group_name" --subnet-id "$subnet_id" --query 'NetworkInterface.NetworkInterfaceId' --output text)
+        else
+          if [ -z "$selected_eni_id" ]; then
+            echo "No Elastic Network Interface selected"
+          fi
+        fi
+
+        # shellcheck disable=SC2034
+        eni_id=$selected_eni_id
+    fi
+}
+
+
+# Select or Create Security Group
+function select_or_create_security_group {
+    # Get the list of security groups
+    security_groups=$(aws ec2 describe-security-groups --query 'SecurityGroups[].GroupName' --output text | xargs -n1 | sort)
+
+    # Convert the list into an array
+    security_group_array=("$security_groups")
+
+    # Display the security groups and ask the user to select one
+    echo "Please select a security group:"
+    for i in "${!security_group_array[@]}"; do
+        echo "$i) ${security_group_array[$i]}"
+    done
+
+    echo "c) Create a new security group"
+
+    read -p "Enter the number of the security group you want to select or 'c' to create a new security group: " selection
+
+    if [ "$selection" = "c" ]; then
+        # Prompt the user for a security group name
+        read -p "Enter the name of the new security group: " selected_security_group
+
+        # Create a new security group
+        aws ec2 create-security-group --group-name "$selected_security_group" --description "Security group for $selected_security_group" > /dev/null
+
+        echo "Security group $selected_security_group created"
+    else
+        # Get the selected security group
+        selected_security_group=${security_group_array[$selection]}
+
+        echo "You selected security group: $selected_security_group"
+    fi
+
+    # Pass the selected security group name back to the calling code
+    security_group_name=$selected_security_group
+}
+
+# Select or Create Instance IAM Role
+function select_or_create_instance_iam_role {
+    # Get the list of instance IAM roles
+    instance_iam_roles=$(aws iam list-roles --query 'Roles[].RoleName' --output text | xargs -n1 | sort)
+
+    # Convert the list into an array
+    instance_iam_role_array=("$instance_iam_roles")
+
+    # Display the instance IAM roles and ask the user to select one
+    echo "Please select an instance IAM role:"
+    for i in "${!instance_iam_role_array[@]}"; do
+        echo "$i) ${instance_iam_role_array[$i]}"
+    done
+
+    echo "c) Create a new instance IAM role"
+
+    read -p "Enter the number of the instance IAM role you want to select or 'c' to create a new instance IAM role: " selection
+
+    if [ "$selection" = "c" ]; then
+        # Prompt the user for an instance IAM role name
+        read -p "Enter the name of the new instance IAM role: " selected_instance_iam_role
+
+        # Create a new instance IAM role
+        aws iam create-role --role-name "$selected_instance_iam_role" --assume-role-policy-document file://instance-iam-role-trust-policy.json > /dev/null
+
+        echo "Instance IAM role $selected_instance_iam_role created"
+    else
+        # Get the selected instance IAM role
+        selected_instance_iam_role=${instance_iam_role_array[$selection]}
+
+        echo "You selected instance IAM role: $selected_instance_iam_role"
+    fi
+
+    # Pass the selected instance IAM role name back to the calling code
+    instance_iam_role_name=$selected_instance_iam_role
+}
+
+# Select or Create Key Pair
+function select_create_or_skip_key_pair {
+    # Get the list of key pairs
+    key_pairs=$(aws ec2 describe-key-pairs --query 'KeyPairs[].KeyName' --output text | xargs -n1 | sort)
+
+    # Convert the list into an array
+    key_pair_array=("$key_pairs")
+
+    # Display the key pairs and ask the user to select one
+    echo "Please select a key pair:"
+    for i in "${!key_pair_array[@]}"; do
+        echo "$i) ${key_pair_array[$i]}"
+    done
+
+    echo "c) Create a new key pair"
+
+    read -p "Enter the number of the key pair you want to select or 'c' to create a new key pair: " selection
+
+    if [ "$selection" = "c" ]; then
+        # Prompt the user for a key pair name
+        read -p "Enter the name of the new key pair: " selected_key_pair
+
+        # Create a new key pair
+        aws ec2 create-key-pair --key-name "$selected_key_pair" --query 'KeyMaterial' --output text > "$selected_key_pair.pem"
+
+        # Make the key pair file read-only
+        chmod 400 "$selected_key_pair.pem"
+
+        echo "Key pair $selected_key_pair created"
+    else
+        # Get the selected key pair
+        selected_key_pair=${key_pair_array[$selection]}
+
+        echo "You selected key pair: $selected_key_pair"
+    fi
+
+    # Pass the selected key pair name back to the calling code
+    key_pair_name=$selected_key_pair
+}
+
+function get_activity_arn {
+    # Prompt for ACTIVITY_ARN
+    echo "Enter the ARN of the activity to run (default: $ACTIVITY_ARN): "
+    read -r input_activity_arn
+    # If the user entered a value, use it. Otherwise, use the default value.
+    ACTIVITY_ARN=${input_activity_arn:-$ACTIVITY_ARN}
+}
+
+# Launch Instance
+function launch_instance {
+    local instance_name=$1
+    local key_pair_name=$2
+    local ami_id=$3
+    local instance_type=$4
+    local instance_iam_role_name=$5
+
+    # Select or Create Security Group
+    select_or_create_security_group security_group_name
+
+    # Select or Create Instance IAM Role
+    if [ -z "$instance_iam_role_name" ]; then
+        select_or_create_instance_iam_role instance_iam_role_name
+    fi
+
+    # Select, Create or Skip Key Pair
+    if [ -z "$key_pair_name" ]; then
+        select_create_or_skip_key_pair key_pair_name
+    fi
+
+    # Select, Create or Skip ENI
+    select_create_or_skip_eni eni_id
+
+    if [ -n "$eni_id" ]; then
+        eni_option="--network-interface-id $eni_id"
+
+        # Select, Create or Skip EIP
+        select_create_or_skip_eip eip_id
+
+        if [ -n "$eip" ]; then
+            eip_option="--eip-allocation-id $eip_id"
+
+        else
+            eip_option=""
+        fi
+
+    else
+        eni_option=""
+    fi
+
+    # Launch the instance
+    aws ec2 run-instances \
+        --image-id "$default_ami_id" \
+        --instance-type "t2.micro" \
+        --key-name "$key_pair_name" \
+        --security-groups "$security_group_name" \
+        --iam-instance-profile Name="$instance_iam_role_name" \
+        --associate-public-ip-address \
+        --tag-specifications "ResourceType=instance,Tags=[{Key=Name,Value=MyInstance}]" \
+        $eip_option \
+        $eni_option \
+        --user-data "echo ACTIVITY_ARN=" \
+        --output table
+}
+
+# Parse command line options
+TEMP=$(getopt -o n:k: --long name:,key-pair: -n "$0" -- "$@")
+eval set -- "$TEMP"
+
+while true ; do
+    case "$1" in
+        -n|--name)
+            instance_name=$2 ; shift 2 ;;
+        -t|--type)
+            instance_type=$2 ; shift 2 ;;
+        -k|--key-pair)
+            key_pair_name=$2 ; shift 2 ;;
+        -h|--help)
+            usage ; exit 0;;
+        --) shift ; break ;;
+        *) echo "Internal error!" ; exit 1 ;;
+    esac
+done
+
+if [ -z "$instance_name" ]; then
+    # shellcheck disable=SC2162
+    read -p "Enter the name of the instance (${default_instance_name}): " instance_name
+    instance_name=${instance_name:-$default_instance_name}
+fi
+
+if [ -z "$instance_type" ]; then
+    # shellcheck disable=SC2162
+    read -p "Enter the instance type (${default_instance_type}): " instance_type
+    instance_type=${instance_type:-$default_instance_type}
+fi
+
+if [ -z "$key_pair_name" ]; then
+    select_or_create_keypair key_pair_name
+fi
+
+ami_id=${ami_id-${default_ami_id}}
+#if [ "$ami_id" = "latest" ]; then
+#  ami_name=${ami_name:-$default_ami_name}
+#  ami_id=$(get_latest_ami_id "$ami_name")
+#fi
+
+launch_instance "$instance_name" "$key_pair_name" "$ami_id" "$instance_type" "$instance_iam_role_name"

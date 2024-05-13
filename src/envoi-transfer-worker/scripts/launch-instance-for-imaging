@@ -1,0 +1,187 @@
+#!/usr/bin/env bash
+
+default_ami_id=${DEFAULT_AMI_ID:-ami-0cfa2ad4242c3168d}
+default_ami_name=${DEFAULT_AMI_NAME:-"ubuntu/images/hvm-ssd/ubuntu-jammy-22.04-amd64-server-*"}
+default_instance_name=${DEFAULT_INSTANCE_NAME:-"envoi-transfer-worker-build"}
+default_instance_type=${DEFAULT_INSTANCE_TYPE:-t3.large}
+default_security_group_name=${DEFAULT_SECURITY_GROUP_NAME:-"envoi-transfer-worker-build"}
+
+USER_DATA=$(cat <<EOF
+#!/bin/bash
+bash <(curl -s https://raw.githubusercontent.com/envoi-io/envoi-transfer-service/main/scripts/install.sh)
+
+# Clear bash history
+history -c
+
+# Remove bash history file
+rm ~/.bash_history
+
+# Clear logs
+sudo find /var/log -type f -delete
+EOF
+)
+
+ENCODED_USER_DATA=$(echo "$USER_DATA" | base64 | tr -d '\n')
+
+function usage {
+  echo "Usage: $0 [-n|--name NAME] [-k|--key-pair KEY_PAIR]"
+  echo "Options:"
+  echo "  -n, --name NAME          The name of the instance"
+  echo "  -k, --key-pair KEY_PAIR  The name of the key pair"
+  exit 1
+}
+
+function get_latest_ami_id {
+  local ami_name=${1:-$default_ami_name}
+  # 099720109477 = amazon
+  aws ec2 describe-images \
+    --owners 099720109477 \
+    --filters "Name=name,Values=${ami_name}" \
+    --query 'sort_by(Images, &CreationDate)[-1].ImageId' \
+    --output text
+}
+
+function launch_instance {
+    local instance_name=$1
+    local key_pair_name=$2
+    local ami_id=$3
+    local instance_type=$4
+    local security_group_name=$5
+
+    # Create the instance
+    aws ec2 run-instances \
+        --image-id "$ami_id" \
+        --count 1 \
+        --instance-type "$instance_type" \
+        --key-name "$key_pair_name" \
+        --tag-specifications "ResourceType=instance,Tags=[{Key=Name,Value=$instance_name}]" \
+        --user-data "$ENCODED_USER_DATA" \
+        --security-groups "$security_group_name" \
+        --no-cli-pager
+}
+
+function select_or_create_keypair {
+    declare -n key_pair_name=$1
+
+    # Get the list of key pairs
+    key_pairs=$(aws ec2 describe-key-pairs --query 'KeyPairs[].KeyName' --output text | xargs -n1 | sort)
+
+    # Convert the list into an array
+    key_pairs_array=($key_pairs)
+
+    # Display the key pairs and ask the user to select one
+    echo "Please select a key pair:"
+    for i in "${!key_pairs_array[@]}"; do
+        echo "$i) ${key_pairs_array[$i]}"
+    done
+
+    echo "c) Create a new key pair"
+
+    read -p "Enter the number of the key pair you want to select or 'c' to create a new key pair: " selection
+
+    if [ "$selection" == "c" ]; then
+        # Prompt the user for a key pair name
+        read -p "Enter the name of the new key pair: " selected_key_pair
+
+        # Create a new key pair
+        aws ec2 create-key-pair --key-name "$selected_key_pair" --query 'KeyMaterial' --output text > "$selected_key_pair.pem"
+
+        # Make the key pair file read-only
+        chmod 400 "$selected_key_pair.pem"
+
+        echo "Key pair $selected_key_pair created"
+    else
+        # Get the selected key pair
+        selected_key_pair=${key_pairs_array[$selection]}
+
+        echo "You selected key pair: $selected_key_pair"
+    fi
+
+    # Pass the selected key pair name back to the calling code
+    key_pair_name=$selected_key_pair
+}
+
+function select_or_create_security_group {
+    declare -n security_group_name=$1
+
+    # Get the list of security groups
+    security_groups=$(aws ec2 describe-security-groups --query 'SecurityGroups[].GroupName' --output text | xargs -n1 | sort -f)
+
+    # Convert the list into an array
+    security_groups_array=("$security_groups")
+
+    # Display the security groups and ask the user to select one
+    echo "Please select a security group:"
+    for i in "${!security_groups_array[@]}"; do
+        echo "$i) ${security_groups_array[$i]}"
+    done
+
+    echo "c) Create a new security group"
+
+    read -p "Enter the number of the security group you want to select or 'c' to create a new security group: " selection
+
+    if [ "$selection" == "c" ]; then
+        # Prompt the user for a security group name
+        read -p "Enter the name of the new security group: " selected_security_group_name
+
+        # Create a new security group
+        aws ec2 create-security-group --group-name "$selected_security_group_name" --description "Security group for $selected_security_group_name" > /dev/null
+
+        echo "Security group $selected_security_group_name created"
+
+        # Add a rule to allow SSH access
+        aws ec2 authorize-security-group-ingress --group-name "$selected_security_group_name" --protocol tcp --port 22 --cidr
+    else
+        # Get the selected security group
+        selected_security_group_name=${security_groups_array[$selection]}
+
+        echo "You selected security group: $selected_security_group_name"
+    fi
+
+    # Pass the selected security group name back to the calling code
+    security_group_name=$selected_security_group_name
+
+}
+
+# Parse command line options
+TEMP=$(getopt -o n:k: --long name:,key-pair: -n "$0" -- "$@")
+eval set -- "$TEMP"
+
+while true ; do
+    case "$1" in
+        -n|--name)
+            instance_name=$2 ; shift 2 ;;
+        -k|--key-pair)
+            key_pair_name=$2 ; shift 2 ;;
+        -h|--help)
+            usage ; exit 0;;
+        --) shift ; break ;;
+        *) echo "Internal error!" ; exit 1 ;;
+    esac
+done
+
+if [ -z "$instance_name" ]; then
+    # shellcheck disable=SC2162
+    read -p "Enter the name of the instance (${default_instance_name}): " instance_name
+    instance_name=${instance_name:-$default_instance_name}
+fi
+
+if [ -z "$key_pair_name" ]; then
+    select_or_create_keypair key_pair_name
+fi
+
+ami_id=${ami_id-${default_ami_id}}
+if [ "$ami_id" = "latest" ]; then
+  ami_name=${ami_name:-$default_ami_name}
+  ami_id=$(get_latest_ami_id "$ami_name")
+fi
+
+security_group_name=${security_group_name-${default_security_group_name}}
+
+instance_type=${instance_type-${default_instance_type}}
+
+echo "$instance_name $key_pair_name $ami_id $instance_type"
+
+launch_instance "$instance_name" "$key_pair_name" "$ami_id" "$instance_type" "$security_group_name"
+
+
