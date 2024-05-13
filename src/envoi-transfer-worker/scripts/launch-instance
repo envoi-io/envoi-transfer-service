@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+
+# Launches an EC2 instance using the Envoi Transfer Worker image
+
 default_ami_id="ami-0cfa2ad4242c3168d"
 default_instance_name=${DEFAULT_INSTANCE_NAME:-"envoi-transfer-worker"}
 default_instance_type=${DEFAULT_INSTANCE_TYPE:-"c7i.large"}

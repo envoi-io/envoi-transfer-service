@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+# Installs the Envoi Transfer Worker systemd service
+
 REPO_URL="https://github.com/envoi-io/envoi-transfer-service.git"
 TARGET_DIR_NAME=envoi-transfer-service
 TARGET_INSTALLATION_BASE_DIR=/opt/envoi

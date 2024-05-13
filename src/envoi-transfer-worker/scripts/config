@@ -1,5 +1,7 @@
 #!/bin/bash
 
+# Used to configure the environment variables for the transfer worker
+
 # Define the path to the environment file
 ENV_FILE="/etc/envoi/envoi-transfer-worker.env"
 
