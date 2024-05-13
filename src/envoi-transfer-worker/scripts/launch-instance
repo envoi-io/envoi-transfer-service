@@ -8,7 +8,6 @@ default_instance_type=${DEFAULT_INSTANCE_TYPE:-"c7i.large"}
 default_security_group_name=${DEFAULT_SECURITY_GROUP_NAME:-"envoi-transfer-worker"}
 
 
-
 function usage {
   echo "Usage: $0 [-n|--name NAME] [-t|--type INSTANCE_TYPE] [-k|--key-pair KEY_PAIR] [-h|--help]"
   echo "Options:"
@@ -226,7 +225,7 @@ function launch_instance {
     local ami_id=$3
     local instance_type=$4
     local instance_iam_role_name=$5
-    local activity_arn=$6
+    local user_data=$6
 
     # Select or Create Security Group
     select_or_create_security_group security_group_name
@@ -283,7 +282,7 @@ function launch_instance {
         $instance_iam_role_option \
         $eip_option \
         $eni_option \
-        --user-data "echo ACTIVITY_ARN=" \
+        --user-data $user_data \
         --output table
 }
 
@@ -330,4 +329,10 @@ ami_id=${ami_id-${default_ami_id}}
 #  ami_id=$(get_latest_ami_id "$ami_name")
 #fi
 
-launch_instance "$instance_name" "$key_pair_name" "$ami_id" "$instance_type" "$instance_iam_role_name" "$activity_arn"
+user_data=$(cat <<EOF
+#!/bin/bash
+echo "ACTIVITY_ARN=${activity_arn}" > "/etc/envoi/envoi-transfer-worker.env"
+EOF
+)
+
+launch_instance "$instance_name" "$key_pair_name" "$ami_id" "$instance_type" "$instance_iam_role_name" "$user_data"
