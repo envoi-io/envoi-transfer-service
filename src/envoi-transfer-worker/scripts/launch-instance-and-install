@@ -4,9 +4,9 @@
 
 default_ami_id=${DEFAULT_AMI_ID:-ami-0cfa2ad4242c3168d}
 default_ami_name=${DEFAULT_AMI_NAME:-"ubuntu/images/hvm-ssd/ubuntu-jammy-22.04-amd64-server-*"}
-default_instance_name=${DEFAULT_INSTANCE_NAME:-"envoi-transfer-worker-build"}
+default_instance_name=${DEFAULT_INSTANCE_NAME:-"envoi-transfer-worker"}
 default_instance_type=${DEFAULT_INSTANCE_TYPE:-t3.large}
-default_security_group_name=${DEFAULT_SECURITY_GROUP_NAME:-"envoi-transfer-worker-build"}
+default_security_group_name=${DEFAULT_SECURITY_GROUP_NAME:-"envoi-transfer-worker"}
 
 function usage {
   echo "Usage: $0 [-n|--name NAME] [-k|--key-pair KEY_PAIR]"
@@ -109,7 +109,9 @@ function select_or_create_security_group {
 
     if [ "$selection" == "c" ]; then
         # Prompt the user for a security group name
-        read -p "Enter the name of the new security group: " selected_security_group_name
+        read -p "Enter the name of the new security group: (${default_security_group_name}) " selected_security_group_name
+
+        selected_security_group_name=${selected_security_group_name:-$default_security_group_name}
 
         # Create a new security group
         aws ec2 create-security-group --group-name "$selected_security_group_name" --description "Security group for $selected_security_group_name" > /dev/null
@@ -169,12 +171,12 @@ if [ "$ami_id" = "latest" ]; then
   ami_id=$(get_latest_ami_id "$ami_name")
 fi
 
-if [ -z "$activity_arn" ]; then
-    read -p "Enter the ARN of the activity to use: " activity_arn
-fi
-
 if [ -z "$security_group_name" ]; then
     select_or_create_security_group security_group_name
+fi
+
+if [ -z "$activity_arn" ]; then
+    read -p "Enter the ARN of the activity to use: " activity_arn
 fi
 
 instance_type=${instance_type-${default_instance_type}}
