@@ -8,6 +8,7 @@ TARGET_INSTALLATION_BASE_DIR=/opt/envoi
 
 apt-get update -y
 apt-get upgrade -y
+apt-get install -y ruby
 gem install bundler
 gem install aspera-cli
 mkdir -p "${TARGET_INSTALLATION_BASE_DIR}"
