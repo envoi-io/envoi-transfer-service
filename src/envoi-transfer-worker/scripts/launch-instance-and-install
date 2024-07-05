@@ -185,6 +185,7 @@ echo "$instance_name $key_pair_name $ami_id $instance_type"
 
 user_data=$(cat <<EOF
 #!/bin/bash
+mkdir -p "/etc/envoi"
 echo "ACTIVITY_ARN=${activity_arn}" > "/etc/envoi/envoi-transfer-worker.env"
 bash <(curl -s https://raw.githubusercontent.com/envoi-io/envoi-transfer-service/main/src/envoi-transfer-worker/scripts/install)
 EOF
