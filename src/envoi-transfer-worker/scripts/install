@@ -21,7 +21,9 @@ bundle install
 environment_file_path="/etc/envoi/envoi-transfer-worker.env"
 
 # Write the environment variables to the file
-echo "ACTIVITY_ARN=" > "$environment_file_path"
+if [ ! -f "$environment_file_path" ]; then
+  echo "ACTIVITY_ARN=" > "$environment_file_path"
+fi
 
 # Get the path to the ruby executable
 ruby_path=$(which ruby)
