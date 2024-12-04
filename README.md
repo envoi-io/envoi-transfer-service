@@ -128,3 +128,43 @@ You selected security group: envoi-dev-server
 Enter the ARN of the activity to use: abc
 envoi-transfer-worker kj-envoi-services-us-east-1 ami-0cfa2ad4242c3168d t3.large
 ```
+
+## Latest Installation Script
+
+Installation onto an Ubuntu 20.04 instance using AMI [ami-053b0d53c279acc90](https://us-east-1.console.aws.amazon.com/ec2/home?region=us-east-1#ImageDetails:imageId=ami-053b0d53c279acc90)
+with an image name of `ubuntu/images/hvm-ssd/ubuntu-jammy-22.04-amd64-server-20230516`
+
+If using the default ACTIVITY_ARN be sure to set the AWS_REGION and AWS_ACCOUNT_ID environment variables before running the script
+
+```shell
+sudo mkdir -p /opt/envoi/envoi-transfer-worker
+sudo chown -R ubuntu:ubuntu /opt/envoi
+sudo pro status
+sudo apt-get update
+sudo apt-get upgrade
+sudo snap install ruby --classic
+sudo snap install node --classic
+gem install bundler
+sudo gem update --system 3.4.19
+gem install aspera-cli
+sudo ln -s ~/.gem/bin/ascli /usr/local/bin/
+which ascli
+ascli conf ascp install
+cat .aspera/sdk/aspera.conf
+
+tar czvf aspera.tgz .aspera
+ascli config wizard --query=aoc
+cd /opt/envoi
+mkdir envoi-transfer-service
+cd envoi-transfer-service
+
+# === PULL REPOS ===
+git clone https://github.com/envoi-io/envoi-transfer-service.git
+
+cd /opt/envoi/envoi-transfer-service/src/envoi-transfer-worker/
+chmod +x exe/envoi-transfer-worker
+bundle install
+export AWS_REGION=us-east-1
+export ACTIVITY_ARN=arn:aws:states:$AWS_REGION:$AWS_ACCOUNT_ID:activity:transferFileDev
+bundle exec exe/envoi-transfer-worker
+```
