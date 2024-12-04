@@ -2,11 +2,13 @@
 # frozen_string_literal: true
 
 environment_file_path = '/etc/envoi/envoi-transfer-worker.env'
-File.write(environment_file_path, <<~ENV_VARS
-  ACTIVITY_ARN=
-ENV_VARS
-)
 
+unless File.exist?(environment_file_path)
+  File.write(environment_file_path, <<~ENV_VARS
+    ACTIVITY_ARN=
+  ENV_VARS
+  )
+end
 
 service_def = <<~SERVICE_DEF
   [Unit]

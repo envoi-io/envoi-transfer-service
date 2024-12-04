@@ -2,12 +2,43 @@
 
 TARGET_BASE_DIR=/opt/envoi
 
-sudo apt-get update -y
-sudo apt-get upgrade -y
+# Detect the OS
+if grep -qEi "(debian|ubuntu)" /etc/os-release; then
+    PKG_MANAGER="apt-get"
+    UPDATE_CMD="$PKG_MANAGER update -y"
+    UPGRADE_CMD="$PKG_MANAGER upgrade -y"
+    INSTALL_CMD="$PKG_MANAGER install -y"
+elif grep -qEi "(centos|fedora|rhel)" /etc/os-release; then
+    PKG_MANAGER="yum"
+    if command -v dnf > /dev/null; then
+        PKG_MANAGER="dnf"
+    fi
+    UPDATE_CMD="$PKG_MANAGER update -y"
+    UPGRADE_CMD="$PKG_MANAGER upgrade -y"
+    INSTALL_CMD="$PKG_MANAGER install -y"
+else
+    echo "Unsupported OS"
+    exit 1
+fi
+
+# Update and upgrade packages
+sudo $UPDATE_CMD
+sudo $UPGRADE_CMD
+
+# Install Ruby and Bundler
+if [ "$PKG_MANAGER" = "apt-get" ]; then
+    sudo $INSTALL_CMD ruby-full build-essential
+elif [ "$PKG_MANAGER" = "yum" ] || [ "$PKG_MANAGER" = "dnf" ]; then
+    sudo $INSTALL_CMD ruby-devel
+fi
 sudo gem install bundler
-sudo gem install aspera-cli
+
+# Install additional dependencies
+sudo $INSTALL_CMD git
+
+# Setup application
 sudo mkdir -p "${TARGET_BASE_DIR}"
-sudo chown -R ubuntu:ubuntu "${TARGET_BASE_DIR}"
+sudo chown -R $(whoami):$(whoami) "${TARGET_BASE_DIR}"
 cd "${TARGET_BASE_DIR}" || exit 1
 git clone https://github.com/envoi-io/envoi-transfer-service.git
 cd "${TARGET_BASE_DIR}/envoi-transfer-service/src/envoi-transfer-worker" || exit 1

@@ -30,12 +30,12 @@ function usage {
   echo "Options:"
   echo "  -n, --name NAME          The name of the instance"
   echo "  -k, --key-pair KEY_PAIR  The name of the key pair"
-  exit 1
+  echo "  -h, --help               Display this help message"
 }
 
 function get_latest_ami_id {
   local ami_name=${1:-$default_ami_name}
-  # 099720109477 = amazon
+  # owner 099720109477 = amazon
   aws ec2 describe-images \
     --owners 099720109477 \
     --filters "Name=name,Values=${ami_name}" \
@@ -49,6 +49,8 @@ function launch_instance {
     local ami_id=$3
     local instance_type=$4
     local security_group_name=$5
+    local subnet_ids=$6
+
 
     # Create the instance
     aws ec2 run-instances \
@@ -158,7 +160,7 @@ while true ; do
         -h|--help)
             usage ; exit 0;;
         --) shift ; break ;;
-        *) echo "Internal error!" ; exit 1 ;;
+        *) echo "Unknown argument $1" ; exit 1 ;;
     esac
 done
 

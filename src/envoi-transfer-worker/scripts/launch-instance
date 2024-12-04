@@ -7,20 +7,19 @@ default_instance_name=${DEFAULT_INSTANCE_NAME:-"envoi-transfer-worker"}
 default_instance_type=${DEFAULT_INSTANCE_TYPE:-"c7i.large"}
 default_security_group_name=${DEFAULT_SECURITY_GROUP_NAME:-"envoi-transfer-worker"}
 
-
 function usage {
-  echo "Usage: $0 [-n|--name NAME] [-t|--type INSTANCE_TYPE] [-k|--key-pair KEY_PAIR] [-h|--help]"
+  echo "Usage: $0 [-n|--name NAME] [-t|--type INSTANCE_TYPE] [-k|--key-pair KEY_PAIR] [-a|--activity-arn ACTIVITY_ARN] [-h|--help]"
   echo "Options:"
   echo "  -n, --name NAME          The name of the instance"
   echo "  -t, --type TYPE          The type of the instance"
   echo "  -k, --key-pair KEY_PAIR  The name of the key pair"
+  echo "  -a, --activity-arn ACTIVITY_ARN The ARN of the activity to run"
   echo "  -h, --help               Display this help and exit"
-  exit 1
 }
 
 # Select, Create or Skip EIP
 function select_create_or_skip_eip {
-    declare -n eip_id=$1
+    declare -n eip_id_ref=$1
     echo "Do you want to associate an Elastic IP with the instance? (y/n)"
     read -r associate_eip
 
@@ -38,7 +37,7 @@ function select_create_or_skip_eip {
             echo "No Elastic IP selected"
           fi
         fi
-        eip_id=selected_eip_id
+        eip_id_ref=selected_eip_id
     fi
 }
 
@@ -70,30 +69,28 @@ function select_subnet {
 
 # Select, Create, or Skip ENI
 function select_create_or_skip_eni {
-    declare -n eni_id=$1
+    declare -n eni_id_ref=$1
 
-    echo "Do you want to attach an Elastic Network Interface to the instance? (y/n)"
-    read -r attach_eni
+    echo "Select an Elastic Network Interface"
+    aws ec2 describe-network-interfaces --query 'NetworkInterfaces[?Status==`available`]' --output table
+    echo "Enter the Network Interface ID: (s) Skip, (c) Create a new ENI"
+    read -r selected_eni_id
 
-    if [ "$attach_eni" = "y" ]; then
-        echo "Select an Elastic Network Interface:"
-        aws ec2 describe-network-interfaces --query 'NetworkInterfaces[?Status==`available`]' --output table
-        echo "Enter the Network Interface ID:"
-        read -r selected_eni_id
-
-        if [ "$selected_eni_id" = "c" ]; then
-            select_subnet subnet_id
-            echo "Creating a new Elastic Network Interface"
-            selected_eni_id=$(aws ec2 create-network-interface --description "ENI for instance" --groups "$default_security_group_name" --subnet-id "$subnet_id" --query 'NetworkInterface.NetworkInterfaceId' --output text)
-        else
-          if [ -z "$selected_eni_id" ]; then
-            echo "No Elastic Network Interface selected"
-          fi
-        fi
-
-        # shellcheck disable=SC2034
-        eni_id=$selected_eni_id
+    if [ "$selected_en_id" = "s" ]; then
+        echo "Skipping Elastic Network Interface selection"
+        selected_en_id=""
+    elif [ "$selected_eni_id" = "c" ]; then
+        select_subnet subnet_id
+        echo "Creating a new Elastic Network Interface"
+        selected_eni_id=$(aws ec2 create-network-interface --description "ENI for instance" --groups "$default_security_group_name" --subnet-id "$subnet_id" --query 'NetworkInterface.NetworkInterfaceId' --output text)
+    else
+      if [ -z "$selected_eni_id" ]; then
+        echo "No Elastic Network Interface selected"
+      fi
     fi
+
+    # shellcheck disable=SC2034
+    eni_id_ref=$selected_eni_id
 }
 
 # Select or Create Security Group
@@ -102,7 +99,8 @@ function select_or_create_security_group {
     security_groups=$(aws ec2 describe-security-groups --query 'SecurityGroups[].GroupName' --output text | xargs -n1 | sort)
 
     # Convert the list into an array
-    security_group_array=("$security_groups")
+    # shellcheck disable=SC2206
+    security_group_array=($security_groups)
 
     # Display the security groups and ask the user to select one
     echo "Please select a security group:"
@@ -139,7 +137,8 @@ function select_or_create_instance_iam_role {
     instance_iam_roles=$(aws iam list-roles --query 'Roles[].RoleName' --output text | xargs -n1 | sort)
 
     # Convert the list into an array
-    instance_iam_role_array=("$instance_iam_roles")
+    # shellcheck disable=SC2206
+    instance_iam_role_array=($instance_iam_roles)
 
     # Display the instance IAM roles and ask the user to select one
     echo "Please select an instance IAM role:"
@@ -176,7 +175,8 @@ function select_create_or_skip_key_pair {
     key_pairs=$(aws ec2 describe-key-pairs --query 'KeyPairs[].KeyName' --output text | xargs -n1 | sort)
 
     # Convert the list into an array
-    key_pair_array=("$key_pairs")
+    # shellcheck disable=SC2206
+    key_pair_array=($key_pairs)
 
     # Display the key pairs and ask the user to select one
     echo "Please select a key pair:"
@@ -210,6 +210,33 @@ function select_create_or_skip_key_pair {
     key_pair_name=$selected_key_pair
 }
 
+function get_or_create_step_function_arn {
+
+    declare -n activity_arn_ref=$1
+
+    # Prompt for ACTIVITY_ARN
+    echo "Enter the ARN of the activity to run or 'c' to create a new step function: "
+    read -r selection
+
+    if [ "$selection" = "c" ]; then
+        # Prompt the user for an activity name
+        read -p "Enter the name of the new activity: " activity_name
+
+        # Create a new activity
+        activity_arn=$(aws stepfunctions create-activity --name "$activity_name" --query 'activityArn' --output text)
+
+        echo "Activity $activity_name created"
+    else
+        # Get the selected activity ARN
+        activity_arn=$selection
+
+        echo "You selected activity ARN: $activity_arn"
+    fi
+
+
+    activity_arn_ref=$activity_arn
+}
+
 function get_activity_arn {
     # Prompt for ACTIVITY_ARN
     echo "Enter the ARN of the activity to run (default: $ACTIVITY_ARN): "
@@ -226,6 +253,25 @@ function launch_instance {
     local instance_type=$4
     local instance_iam_role_name=$5
     local user_data=$6
+
+    ami_id=${ami_id-${default_ami_id}}
+    #if [ "$ami_id" = "latest" ]; then
+    #  ami_name=${ami_name:-$default_ami_name}
+    #  ami_id=$(get_latest_ami_id "$ami_name")
+    #fi
+
+
+    if [ -z "$instance_name" ]; then
+        # shellcheck disable=SC2162
+        read -p "Enter the name of the instance (${default_instance_name}): " instance_name
+        instance_name=${instance_name:-$default_instance_name}
+    fi
+
+    if [ -z "$instance_type" ]; then
+        # shellcheck disable=SC2162
+        read -p "Enter the instance type (${default_instance_type}): " instance_type
+        instance_type=${instance_type:-$default_instance_type}
+    fi
 
     # Select or Create Security Group
     select_or_create_security_group security_group_name
@@ -251,7 +297,6 @@ function launch_instance {
 
         if [ -n "$eip" ]; then
             eip_option="--eip-allocation-id $eip_id"
-
         else
             eip_option=""
         fi
@@ -287,7 +332,8 @@ function launch_instance {
 }
 
 # Parse command line options
-TEMP=$(getopt -o n:k: --long name:,key-pair: -n "$0" -- "$@")
+#TEMP=$(getopt -o n:k: --long name:,key-pair: -n "$0" -- "$@")
+TEMP=$(getopt -o a:n:t:k: --long activity_arn:,name:,type:,key-pair: -n "$0" -- "$@")
 eval set -- "$TEMP"
 
 while true ; do
@@ -307,27 +353,6 @@ while true ; do
     esac
 done
 
-if [ -z "$instance_name" ]; then
-    # shellcheck disable=SC2162
-    read -p "Enter the name of the instance (${default_instance_name}): " instance_name
-    instance_name=${instance_name:-$default_instance_name}
-fi
-
-if [ -z "$instance_type" ]; then
-    # shellcheck disable=SC2162
-    read -p "Enter the instance type (${default_instance_type}): " instance_type
-    instance_type=${instance_type:-$default_instance_type}
-fi
-
-if [ -z "$key_pair_name" ]; then
-    select_or_create_keypair key_pair_name
-fi
-
-ami_id=${ami_id-${default_ami_id}}
-#if [ "$ami_id" = "latest" ]; then
-#  ami_name=${ami_name:-$default_ami_name}
-#  ami_id=$(get_latest_ami_id "$ami_name")
-#fi
 
 user_data=$(cat <<EOF
 #!/bin/bash

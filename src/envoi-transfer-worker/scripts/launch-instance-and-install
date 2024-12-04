@@ -47,6 +47,48 @@ function launch_instance {
         --no-cli-pager
 }
 
+function select_vpc {
+    # Get the list of VPCs
+    VPCS=$(aws ec2 describe-vpcs --query 'Vpcs[].VpcId' --output text)
+
+    # Convert the list into an array
+    VPC_ARRAY=($VPCS)
+
+    # Display the VPCs and ask the user to select one
+    echo "Please select a VPC:"
+    for i in "${!VPC_ARRAY[@]}"; do
+        echo "$i) ${VPC_ARRAY[$i]}"
+    done
+
+    read -p "Enter the number of the VPC you want to select: " SELECTION
+
+    # Get the selected VPC
+    SELECTED_VPC=${VPC_ARRAY[$SELECTION]}
+
+    echo "You selected VPC: $SELECTED_VPC"
+}
+
+function select_iam_role {
+    # Get the list of IAM roles
+    ROLES=$(aws iam list-roles --query 'Roles[].RoleName' --output text)
+
+    # Convert the list into an array
+    ROLE_ARRAY=($ROLES)
+
+    # Display the IAM roles and ask the user to select one
+    echo "Please select an IAM role:"
+    for i in "${!ROLE_ARRAY[@]}"; do
+        echo "$i) ${ROLE_ARRAY[$i]}"
+    done
+
+    read -p "Enter the number of the IAM role you want to select: " SELECTION
+
+    # Get the selected IAM role
+    SELECTED_ROLE=${ROLE_ARRAY[$SELECTION]}
+
+    echo "You selected IAM role: $SELECTED_ROLE"
+}
+
 function select_or_create_keypair {
     declare -n key_pair_name_ref=$1
 
@@ -114,12 +156,15 @@ function select_or_create_security_group {
         selected_security_group_name=${selected_security_group_name:-$default_security_group_name}
 
         # Create a new security group
-        aws ec2 create-security-group --group-name "$selected_security_group_name" --description "Security group for $selected_security_group_name" > /dev/null
+        create_security_group_response=$(aws ec2 create-security-group --group-name "$selected_security_group_name" --description "Security group for $selected_security_group_name")
 
         echo "Security group $selected_security_group_name created"
 
         # Add a rule to allow SSH access
         aws ec2 authorize-security-group-ingress --group-name "$selected_security_group_name" --protocol tcp --port 22 --cidr
+
+        security_group_id=$(echo "$create_security_group_response" | jq -r '.GroupId')
+        selected_security_group_name=$security_group_id
     else
         # Get the selected security group
         selected_security_group_name=${security_groups_array[$selection]}
@@ -176,7 +221,7 @@ if [ -z "$security_group_name" ]; then
 fi
 
 if [ -z "$activity_arn" ]; then
-    read -p "Enter the ARN of the activity to use: " activity_arn
+    get_or_create_activity activity_arn
 fi
 
 instance_type=${instance_type-${default_instance_type}}
